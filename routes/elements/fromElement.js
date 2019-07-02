@@ -1,11 +1,8 @@
-
 const element = require('express').Router();
 const { COMMANDS } = require('../../commands/commands');
 
 // errors
-const {
-  NoSuchElement,
-} = require('../../Error/errors.js');
+const { NoSuchElement } = require('../../Error/errors.js');
 
 // get element text
 element.get('/text', async (req, res, next) => {
@@ -36,9 +33,7 @@ element.post(['/element', '/elements'], async (req, res, next) => {
 
     const response = {};
     const result = await req.session.process(req.sessionRequest);
-    if (result === undefined
-      || result === null
-      || result.length === 0) throw new NoSuchElement();
+    if (result === undefined || result === null || result.length === 0) throw new NoSuchElement();
 
     response.value = single ? result[0] : result;
     res.json(response);
@@ -96,14 +91,22 @@ element.post('/value', async (req, res, next) => {
 });
 
 // click element
-element.post('/click', (req, res, next) => {
-
+element.post('/click', /* async */ (req, res, next) => {
+  console.log(' REQ: ', req.body);
+  res.send(null);
+  // const release = await req.session.mutex.acquire();
+  // req.sessionRequest.command = COMMANDS.CLICK_ELEMENT;
+  // try {
+  //   const response = await req.session.process(req.sessionRequest);
+  //   res.json(response);
+  // } catch (err) {
+  //   next(err);
+  // } finally {
+  //   release();
+  // }
 });
 
 // clear element
-element.post('/clear', (req, res, next) => {
-
-});
-
+element.post('/clear', (req, res, next) => {});
 
 module.exports = element;
