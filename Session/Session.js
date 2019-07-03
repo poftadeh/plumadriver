@@ -8,13 +8,17 @@ const { JSDOM } = require('jsdom');
 const Browser = require('../browser/browser.js');
 const WebElement = require('../WebElement/WebElement.js');
 const { COMMANDS } = require('../commands/commands');
+const { InputSource } = require('../InputSource/InputSource.js');
+const { InputAction } = require('../InputSource/Actions.js');
 
 // custom
 const { addFileList } = require('../jsdom_extensions/addFileList');
 const utils = require('../utils/utils');
 
 // DOM specific
-const { Event, HTMLElement } = new JSDOM().window;
+const {
+  Event, HTMLElement, HTMLInputElement, HTMLOptionElement,
+} = new JSDOM().window;
 
 // W3C
 const ELEMENT = 'element-6066-11e4-a52e-4f735466cecf';
@@ -41,6 +45,9 @@ class Session {
     };
     this.configureSession(requestBody);
     this.mutex = new Mutex();
+    this.activeInputSources = [];
+    this.inputStateTable = [];
+    this.inputCancelList = [];
   }
 
   // delegates request
@@ -105,6 +112,9 @@ class Session {
           case COMMANDS.ELEMENT_SEND_KEYS:
             await this.sendKeysToElement(parameters.text, urlVariables.elementId);
             break;
+          case COMMANDS.CLICK_ELEMENT:
+            await this.clickElement(urlVariables.elementId);
+            break;
           default:
             break;
         }
@@ -115,6 +125,53 @@ class Session {
     });
   }
 
+  clickElement(elementId) {
+    const webElement = this.browser.getKnownElement(elementId);
+    const { element } = webElement;
+
+    if (element instanceof HTMLInputElement && element.type === 'file') throw new InvalidArgument(COMMANDS.CLICK_ELEMENT);
+    if (!webElement.isInteractable()) throw new Error('Element is not interactable'); // TODO: add element not interactable error class
+
+    // TODO: figure out how to determine if element is obsucred by another element
+    // Possibly to do with z-index in css this has more to do with a rendering
+    // context and not very applicable in the context of jsdom.
+
+    if (element instanceof HTMLOptionElement) {
+      const parent = element.parentElement;
+
+      parent.dispatchEvent(new Event('mouseOver'));
+      parent.dispatchEvent(new Event('mouseMove'));
+      parent.dispatchEvent(new Event('mouseDown'));
+
+      if (!element.disabled) {
+        parent.dispatchEvent('input');
+        const prevSelectedness = element.selected;
+
+        element.selected = parent.getAttribute('multiple') ? !element.selected : true;
+
+        if (prevSelectedness) parent.dispatchEvent('change');
+      }
+
+      parent.dispatchEvent('mouseUp');
+      parent.dispatchEvent('click');
+    } else {
+
+      // pointerMove action not implemented as this is not a rendering context.
+      //  Much of mouse move has to do with a rendering context. Ommited.
+      const mouse = new InputSource('pointer');
+      const pointerDown = new InputAction(mouse.id, mouse.type, 'pointerDown');
+
+      pointerDown.button = 0;
+
+      const pointerUp = new InputAction(mouse.id, mouse.type, 'pointerUp');
+      pointerUp.button = 0;
+
+      // TODO: dispatch pointer actions
+
+    }
+  }
+
+  // TODO: input source needs to be implemted and integrated to this method.
   sendKeysToElement(text, elementId) {
     return new Promise(async (resolve, reject) => {
       const webElement = this.browser.getKnownElement(elementId);
