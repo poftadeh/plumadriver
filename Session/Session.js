@@ -9,7 +9,7 @@ const Browser = require('../browser/browser.js');
 const WebElement = require('../WebElement/WebElement.js');
 const { COMMANDS } = require('../commands/commands');
 const { InputSource } = require('../InputSource/InputSource.js');
-const { InputAction } = require('../InputSource/Actions.js');
+const { Action } = require('../InputSource/Actions/Action.js');
 
 // custom
 const { addFileList } = require('../jsdom_extensions/addFileList');
@@ -125,6 +125,35 @@ class Session {
     });
   }
 
+  dispatchAction() {
+    this.pointer = {
+      down: (elementId, action, inputState, /* tickDuration */ ) => {
+        const pointerType = action.type;
+        const { button } = action;
+        if (inputState.pressed.includes(button)) {
+          return null;
+        }
+        const { x, y } = inputState;
+        const buttons = inputState.pressed.push(button);
+        const copy = Object.assign({}, action);
+        copy.setActionSubtype(copy.type, 'pointerUp');
+        this.inputCancelList.push(copy);
+
+        const element = this.browser.getKnownElement(elementId);
+        // TODO: dispatch events on jsdom
+        switch(action.type) {
+          case 'pointer':
+            if (action.subtype === 'pointerDown') {
+              element.dispatchEvent(new Event('mousedown'));
+            }
+            break; 
+          default:
+            break;
+        }
+      },
+    };
+  }
+
   clickElement(elementId) {
     const webElement = this.browser.getKnownElement(elementId);
     const { element } = webElement;
@@ -139,9 +168,9 @@ class Session {
     if (element instanceof HTMLOptionElement) {
       const parent = element.parentElement;
 
-      parent.dispatchEvent(new Event('mouseOver'));
-      parent.dispatchEvent(new Event('mouseMove'));
-      parent.dispatchEvent(new Event('mouseDown'));
+      parent.dispatchEvent(new Event('mouseover'));
+      parent.dispatchEvent(new Event('mousemove'));
+      parent.dispatchEvent(new Event('mousedown'));
 
       if (!element.disabled) {
         parent.dispatchEvent('input');
@@ -155,19 +184,17 @@ class Session {
       parent.dispatchEvent('mouseUp');
       parent.dispatchEvent('click');
     } else {
-
       // pointerMove action not implemented as this is not a rendering context.
       //  Much of mouse move has to do with a rendering context. Ommited.
       const mouse = new InputSource('pointer');
-      const pointerDown = new InputAction(mouse.id, mouse.type, 'pointerDown');
+      const pointerDown = new Action(mouse.id, 'pointer', 'pointerDown');
 
       pointerDown.button = 0;
 
-      const pointerUp = new InputAction(mouse.id, mouse.type, 'pointerUp');
+      const pointerUp = new Action(mouse.id, 'mouse', 'pointerUp');
       pointerUp.button = 0;
 
       // TODO: dispatch pointer actions
-
     }
   }
 
